@@ -5,16 +5,16 @@ import psycopg2
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-# --- Logging Config ---
+# --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Google OAuth Credentials from secrets.toml ---
+# --- Google OAuth Credentials (from .streamlit/secrets.toml) ---
 GOOGLE_CLIENT_ID = st.secrets["google"]["client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google"]["client_secret"]
 REDIRECT_URI = st.secrets["google"]["redirect_uri"]
 
-# --- Neon DB Connection String ---
+# --- Neon Database Connection String (from .streamlit/secrets.toml) ---
 DB_CONNECTION_STRING = st.secrets["neon"]["connection_string"]
 
 # --- Google OAuth Functions ---
@@ -26,8 +26,8 @@ def google_signin():
         st.success(f"Already signed in as {st.session_state['user']['email']}")
         return
 
-    # Get query parameters (e.g., the auth code)
-    query_params = st.experimental_get_query_params()
+    # Use the new query_params API instead of experimental_get_query_params()
+    query_params = st.query_params
     if "code" in query_params:
         _handle_oauth_callback(query_params["code"][0])
         return
@@ -59,7 +59,7 @@ def _handle_oauth_callback(auth_code: str):
         st.error("Authentication failed. No ID token.")
         return
 
-    # Validate Google ID token
+    # Validate the Google ID token
     id_info = _validate_google_token(tokens["id_token"])
     if not id_info:
         return
@@ -71,8 +71,9 @@ def _handle_oauth_callback(auth_code: str):
         "name": id_info.get("name", email.split("@")[0])
     }
 
-    # Clear query parameters to clean up the URL
-    st.experimental_set_query_params()
+    # Clear the query parameters using the new API
+    st.query_params = {}
+
     st.success(f"Logged in as {st.session_state['user']['name']}")
 
 def _exchange_code_for_tokens(auth_code: str) -> dict:
@@ -115,7 +116,6 @@ def insert_user_info(fullname, occupation, country, user_email, google_id):
     try:
         conn = psycopg2.connect(DB_CONNECTION_STRING)
         cur = conn.cursor()
-        # Insert or update record (using ON CONFLICT for unique google_id)
         query = """
         INSERT INTO users (google_id, email, fullname, occupation, country)
         VALUES (%s, %s, %s, %s, %s)
@@ -138,14 +138,12 @@ def main_page():
     st.title("Welcome to the Future")
     st.write("Here is the future: add your details below.")
 
-    # Check if the user is authenticated.
     if "user" not in st.session_state:
         st.info("Please sign in first.")
         google_signin()
     else:
         user = st.session_state["user"]
-        st.write(f"Hello, {user['name']}!")
-
+        st.write(f"Logged in as {user['name']}")
         with st.form("user_info_form"):
             fullname = st.text_input("Full Name")
             occupation = st.text_input("Occupation")
