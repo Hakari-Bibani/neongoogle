@@ -37,7 +37,11 @@ def run_query(query, params=None):
     try:
         with conn.cursor() as cur:
             cur.execute(query, params)
-            result = cur.fetchall()
+            try:
+                result = cur.fetchall()
+            except psycopg2.ProgrammingError:
+                # No results to fetch (e.g. for queries without a result set)
+                result = []
             conn.commit()
             return result
     except Exception as e:
@@ -55,7 +59,10 @@ def run_command_returning(query, params=None):
     try:
         with conn.cursor() as cur:
             cur.execute(query, params)
-            returning_data = cur.fetchone()
+            try:
+                returning_data = cur.fetchone()
+            except psycopg2.ProgrammingError:
+                returning_data = None
             conn.commit()
             return returning_data
     except Exception as e:
@@ -90,8 +97,9 @@ def google_signin():
         st.write("here is the future")
         return
 
-    query_params = st.experimental_get_query_params()
-    
+    # Use the new API for query parameters
+    query_params = st.query_params
+
     # Handle OAuth callback if a code is present
     if "code" in query_params:
         _handle_oauth_callback(query_params["code"][0])
@@ -144,8 +152,8 @@ def _handle_oauth_callback(auth_code: str):
         "username": username
     }
 
-    # Clear query parameters to tidy up the URL
-    st.experimental_set_query_params()
+    # Clear query parameters to tidy up the URL using the new API
+    st.set_query_params()
 
     st.success(f"Logged in as {full_name} ({email})")
     st.write("here is the future")
