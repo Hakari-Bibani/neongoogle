@@ -26,8 +26,8 @@ def google_signin():
         st.success(f"Signed in as {st.session_state['user']['email']}")
         return
 
-    # Get query parameters
-    query_params = st.experimental_get_query_params()
+    # Get query parameters using the new st.query_params
+    query_params = st.query_params  # Updated from st.experimental_get_query_params()
     if "code" in query_params:
         _handle_oauth_callback(query_params["code"][0])
         return
@@ -70,7 +70,9 @@ def _handle_oauth_callback(auth_code: str):
     
     # Save user info in session state
     st.session_state["user"] = {"id": user_id, "name": name, "email": email}
-    st.experimental_set_query_params()  # Clear query params
+    
+    # Clear query params using the new st.set_query_params
+    st.set_query_params()  # Updated from st.experimental_set_query_params()
     st.success(f"Logged in as {name} ({email})")
 
 def _exchange_code_for_tokens(auth_code: str) -> dict:
@@ -120,9 +122,7 @@ def _get_or_create_user(username: str, email: str) -> int:
     
     # Create new user. Occupation and country will be added later.
     insert_query = "INSERT INTO users (username, email) VALUES (%s, %s) RETURNING user_id"
-    new_user = run_command(insert_query, (username, email))
-    # After insertion, get the user_id (here we simplify and assume run_command returns it)
-    # In a real-world case, you might want to run another query to fetch the inserted ID.
+    run_command(insert_query, (username, email))
     result = run_query(query, (email,))
     return result[0][0] if result else None
 
