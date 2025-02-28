@@ -6,7 +6,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from db_handler import run_command, run_query
 
-# Logging config
+# Logging configuration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,8 @@ def google_signin():
         st.success(f"Signed in as {st.session_state['user']['email']}")
         return
 
-    # Get query parameters using the new st.query_params
+    # Debug: show current query parameters
+    st.write("Debug - Query Params:", st.query_params)
     query_params = st.query_params  # Updated from st.experimental_get_query_params()
     if "code" in query_params:
         _handle_oauth_callback(query_params["code"][0])
@@ -53,6 +54,7 @@ def _handle_oauth_callback(auth_code: str):
     if not auth_code:
         st.error("Missing authorization code.")
         return
+
     tokens = _exchange_code_for_tokens(auth_code)
     if not tokens or "id_token" not in tokens:
         st.error("Authentication failed.")
@@ -71,7 +73,7 @@ def _handle_oauth_callback(auth_code: str):
     # Save user info in session state
     st.session_state["user"] = {"id": user_id, "name": name, "email": email}
     
-    # Clear query params using the new st.set_query_params
+    # Clear query parameters using the new st.set_query_params
     st.set_query_params()  # Updated from st.experimental_set_query_params()
     st.success(f"Logged in as {name} ({email})")
 
@@ -86,11 +88,16 @@ def _exchange_code_for_tokens(auth_code: str) -> dict:
     }
     try:
         resp = requests.post(token_url, data=data, timeout=15)
+        logger.info(f"Token exchange response status: {resp.status_code}")
         resp.raise_for_status()
         return resp.json()
+    except requests.exceptions.HTTPError as e:
+        error_detail = e.response.text if e.response else str(e)
+        logger.error(f"Token exchange HTTP error: {error_detail}")
+        st.error(f"Failed to exchange code for tokens. HTTP error: {error_detail}")
     except Exception as e:
-        logger.error(f"Token exchange error: {str(e)}")
-        st.error("Failed to exchange code for tokens.")
+        logger.error(f"Token exchange exception: {str(e)}")
+        st.error(f"Failed to contact Google servers. Exception: {str(e)}")
     return {}
 
 def _validate_google_token(token: str) -> dict:
@@ -113,7 +120,7 @@ def _validate_google_token(token: str) -> dict:
 
 def _get_or_create_user(username: str, email: str) -> int:
     """
-    Check if user exists; if not, create a new user row.
+    Check if the user exists; if not, create a new user row.
     """
     query = "SELECT user_id FROM users WHERE email = %s"
     result = run_query(query, (email,))
@@ -128,7 +135,7 @@ def _get_or_create_user(username: str, email: str) -> int:
 
 def main_page():
     """
-    Displays the main page after authentication.
+    Displays the main page after successful authentication.
     """
     st.header("Here is the future so it is simple")
     st.write("Welcome to our app!")
@@ -152,7 +159,7 @@ def main_page():
                 st.error("User not found. Please sign in.")
 
 def main():
-    # Display Google sign-in if user not logged in
+    # Show sign-in page if user not logged in, otherwise show main page
     if "user" not in st.session_state:
         google_signin()
     else:
